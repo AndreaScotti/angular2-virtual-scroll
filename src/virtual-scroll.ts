@@ -110,19 +110,24 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
   @Output()
   end: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
 
-  @ViewChild('content', { read: ElementRef })
+  @ViewChild('content', {read: ElementRef})
   contentElementRef: ElementRef;
 
-  @ViewChild('shim', { read: ElementRef })
+  @ViewChild('shim', {read: ElementRef})
   shimElementRef: ElementRef;
 
-  @ContentChild('container')
+  @ContentChild('container', {read: ElementRef})
   containerElementRef: ElementRef;
 
-  previousStart: number;
-  previousEnd: number;
+  topPadding: number = 0;
+  previousStart: number = 0;
+  previousEnd: number = -1;
+  previousChildHeight: number = 0;
+  previousScrollNumberElements: number = 0;
   startupLoop: boolean = true;
-  currentTween: any;
+  currentTween: tween.Tween;
+  itemsHeight: { [key: number]: number } = {};
+  window = window;
 
   private disposeScrollHandler: () => void | undefined;
   private disposeResizeHandler: () => void | undefined;
@@ -172,19 +177,20 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
-  scrollInto(item: any) {
-    let el: Element = this.parentScroll instanceof Window ? document.body : this.parentScroll || this.element.nativeElement;
+  scrollInto(item: any, additionalOffset?: number) {
+    let el: Element = this.getElement();
     let offsetTop = this.getElementsOffset();
     let index: number = (this.items || []).indexOf(item);
     if (index < 0 || index >= (this.items || []).length) return;
 
     let d = this.calculateDimensions();
-    let scrollTop = (Math.floor(index / d.itemsPerRow) * d.childHeight)
-      - (d.childHeight * Math.min(index, this.bufferAmount));
+    let scrollTop = (Math.floor(index / d.itemsPerRow) * d.childHeight) + offsetTop + (additionalOffset ? additionalOffset : 0);
 
-    if (this.currentTween != undefined) this.currentTween.stop()
-    this.currentTween = new tween.Tween({ scrollTop: el.scrollTop })
-      .to({ scrollTop }, this.scrollAnimationTime)
+    if (this.currentTween != undefined) this.currentTween.stop();
+    let scrollObj = {scrollTop: el.scrollTop};
+
+    let currentTween = new tween.Tween(scrollObj)
+      .to({scrollTop}, this.scrollAnimationTime)
       .easing(tween.Easing.Quadratic.Out)
       .onUpdate((data) => {
         this.renderer.setProperty(el, 'scrollTop', data.scrollTop);
@@ -192,16 +198,24 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
       })
       .start();
 
-    const animate = (time?) => {
-      this.currentTween.update(time);
-      if (this.currentTween._object.scrollTop !== scrollTop) {
+    const animate = (time?: number) => {
+      currentTween.update(time);
+      if (scrollObj.scrollTop !== scrollTop) {
         this.zone.runOutsideAngular(() => {
           requestAnimationFrame(animate);
         });
       }
-    }
+    };
 
-    animate()
+    animate();
+    this.currentTween = currentTween;
+  }
+
+  private getElement(): Element {
+    if (this.parentScroll instanceof Window) {
+      return document.scrollingElement || document.documentElement;
+    }
+    return this.parentScroll || this.element.nativeElement;
   }
 
   private addParentEventHandlers(parentScroll: Element | Window) {
@@ -289,11 +303,8 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
     let itemsPerRow = Math.max(1, this.countItemsPerRow());
     let itemsPerRowByCalc = Math.max(1, Math.floor(viewWidth / childWidth));
     let itemsPerCol = Math.max(1, Math.floor(viewHeight / childHeight));
-    let elScrollTop = this.parentScroll instanceof Window
-      ? (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0)
-      : el.scrollTop;
-    let scrollTop = Math.max(0, elScrollTop);
-    const scrollHeight = childHeight * itemCount / itemsPerRow;
+    let scrollTop = Math.max(0, el.scrollTop);
+    const scrollHeight = (childHeight * (itemCount - this.previousEnd) + this.topPadding + sumOfCurrentChildHeight) / itemsPerRow;
     if (itemsPerCol === 1 && Math.floor(scrollTop / scrollHeight * itemCount) + itemsPerRowByCalc >= itemCount) {
       itemsPerRow = itemsPerRowByCalc;
     }
@@ -309,30 +320,54 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
       viewHeight: viewHeight,
       childWidth: childWidth,
       childHeight: childHeight,
+      currentChildHeight: contentDimensions.height,
       itemsPerRow: itemsPerRow,
       itemsPerCol: itemsPerCol,
       itemsPerRowByCalc: itemsPerRowByCalc,
-      scrollHeight,
+      scrollHeight: scrollHeight
     };
   }
 
   private calculateItems() {
     NgZone.assertNotInAngularZone();
-    let el = this.parentScroll instanceof Window ? document.body : this.parentScroll || this.element.nativeElement;
+    let el = this.getElement();
 
     let d = this.calculateDimensions();
     let items = this.items || [];
     let offsetTop = this.getElementsOffset();
-    let elScrollTop = this.parentScroll instanceof Window
-      ? (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0)
-      : el.scrollTop;
+    let elScrollTop = el.scrollTop;
 
     if (elScrollTop > d.scrollHeight) {
       elScrollTop = d.scrollHeight + offsetTop;
     }
 
     let scrollTop = Math.max(0, elScrollTop - offsetTop);
-    let indexByScrollTop = scrollTop / d.scrollHeight * d.itemCount / d.itemsPerRow;
+    let content = this.contentElementRef.nativeElement;
+
+    if (this.containerElementRef && this.containerElementRef.nativeElement) {
+      content = this.containerElementRef.nativeElement;
+    }
+
+    let indexByScrollTop = this.previousStart;
+    let childrenContent = content.children;
+    if (this.topPadding > scrollTop) {
+      // scroll up
+      indexByScrollTop -= (this.topPadding - scrollTop) / d.childHeight;
+    } else {
+      // scroll down
+      let topPaddingCurrent = this.topPadding;
+      for (let child of childrenContent) {
+        let childHeight = child.getBoundingClientRect().height;
+        topPaddingCurrent = topPaddingCurrent + childHeight;
+        if (scrollTop < topPaddingCurrent) {
+          indexByScrollTop += 1 - (topPaddingCurrent - scrollTop) / childHeight;
+          break;
+        } else {
+          indexByScrollTop++;
+        }
+      }
+    }
+
     let end = Math.min(d.itemCount, Math.ceil(indexByScrollTop) * d.itemsPerRow + d.itemsPerRow * (d.itemsPerCol + 1));
 
     let maxStartEnd = end;
