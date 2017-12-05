@@ -180,7 +180,7 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
   scrollTop() {
     let el: Element = this.getElement();
     let offsetTop = this.getElementsOffset();
-    let scrollTop = offsetTop;
+    let scrollTop = 0;
     let scrollObj = { scrollTop: el.scrollTop };
     
     let currentTween = new tween.Tween(scrollObj)

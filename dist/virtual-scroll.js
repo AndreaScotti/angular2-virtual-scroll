@@ -77,7 +77,7 @@ var VirtualScrollComponent = (function () {
         var _this = this;
         var el = this.getElement();
         var offsetTop = this.getElementsOffset();
-        var scrollTop = offsetTop;
+        var scrollTop = 0;
         var scrollObj = { scrollTop: el.scrollTop };
         var currentTween = new tween.Tween(scrollObj)
             .to({ scrollTop: scrollTop }, this.scrollAnimationTime)
