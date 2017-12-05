@@ -179,7 +179,13 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
 
   scrollTop() {
     let el: Element = this.getElement();
+    el.scrollHeight
     el.scrollTo(0, 0);
+  }
+
+  scrollBottom() {
+    let el: Element = this.getElement();    
+    el.scrollTo(0, el.scrollHeight);
   }
 
   scrollInto(item: any, additionalOffset?: number) {

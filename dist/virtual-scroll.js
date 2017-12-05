@@ -75,7 +75,12 @@ var VirtualScrollComponent = (function () {
     };
     VirtualScrollComponent.prototype.scrollTop = function () {
         var el = this.getElement();
+        el.scrollHeight;
         el.scrollTo(0, 0);
+    };
+    VirtualScrollComponent.prototype.scrollBottom = function () {
+        var el = this.getElement();
+        el.scrollTo(0, el.scrollHeight);
     };
     VirtualScrollComponent.prototype.scrollInto = function (item, additionalOffset) {
         var _this = this;
