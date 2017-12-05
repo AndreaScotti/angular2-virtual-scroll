@@ -179,30 +179,7 @@ export class VirtualScrollComponent implements OnInit, OnChanges, OnDestroy {
 
   scrollTop() {
     let el: Element = this.getElement();
-    let offsetTop = this.getElementsOffset();
-    let scrollTop = 0;
-    let scrollObj = { scrollTop: el.scrollTop };
-    
-    let currentTween = new tween.Tween(scrollObj)
-      .to({ scrollTop }, this.scrollAnimationTime)
-      .easing(tween.Easing.Quadratic.Out)
-      .onUpdate((data) => {
-        this.renderer.setProperty(el, 'scrollTop', data.scrollTop);
-        this.refresh();
-      })
-      .start();
-
-    const animate = (time?: number) => {
-      currentTween.update(time);
-      if (scrollObj.scrollTop !== scrollTop) {
-        this.zone.runOutsideAngular(() => {
-          requestAnimationFrame(animate);
-        });
-      }
-    };
-
-    animate();
-    this.currentTween = currentTween;
+    el.scrollTo(0, 0);
   }
 
   scrollInto(item: any, additionalOffset?: number) {
