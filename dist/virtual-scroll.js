@@ -73,6 +73,31 @@ var VirtualScrollComponent = (function () {
             requestAnimationFrame(function () { return _this.calculateItems(); });
         });
     };
+    VirtualScrollComponent.prototype.scrollTop = function () {
+        var _this = this;
+        var el = this.getElement();
+        var offsetTop = this.getElementsOffset();
+        var scrollTop = offsetTop;
+        var scrollObj = { scrollTop: el.scrollTop };
+        var currentTween = new tween.Tween(scrollObj)
+            .to({ scrollTop: scrollTop }, this.scrollAnimationTime)
+            .easing(tween.Easing.Quadratic.Out)
+            .onUpdate(function (data) {
+            _this.renderer.setProperty(el, 'scrollTop', data.scrollTop);
+            _this.refresh();
+        })
+            .start();
+        var animate = function (time) {
+            currentTween.update(time);
+            if (scrollObj.scrollTop !== scrollTop) {
+                _this.zone.runOutsideAngular(function () {
+                    requestAnimationFrame(animate);
+                });
+            }
+        };
+        animate();
+        this.currentTween = currentTween;
+    };
     VirtualScrollComponent.prototype.scrollInto = function (item, additionalOffset) {
         var _this = this;
         var el = this.getElement();
